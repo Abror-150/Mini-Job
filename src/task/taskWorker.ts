@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Worker, Job } from 'bullmq';
 import { TaskService } from './task.service';
 import { TaskStatus } from './entities/task.entity';
+import { MockService } from '../mock/mock.service'; // ← import
 
 @Injectable()
 export class TaskWorker implements OnModuleInit {
@@ -10,6 +11,7 @@ export class TaskWorker implements OnModuleInit {
 
   constructor(
     private taskService: TaskService,
+    private mockService: MockService, // ← inject
     @InjectQueue('tasks') private taskQueue: Queue,
   ) {}
 
@@ -20,18 +22,15 @@ export class TaskWorker implements OnModuleInit {
         const taskId = job.data.taskId;
         const attempts = job.attemptsMade;
 
+        const task = await this.taskService.findOne(taskId);
+
         await this.taskService.updateStatus(taskId, TaskStatus.PROCESSING);
         this.logger.log(`Processing task ${taskId}, attempt #${attempts + 1}`);
 
-        const delay = 2000 + Math.random() * 3000;
-        await new Promise((res) => setTimeout(res, delay));
-
-        if (Math.random() < 0.25) {
-          throw new Error(`Simulated failure for task ${taskId}`);
-        }
+        const result = await this.mockService.processTask(task.payload);
 
         await this.taskService.updateStatus(taskId, TaskStatus.COMPLETED);
-        this.logger.log(`Task ${taskId} completed successfully`);
+        this.logger.log(`Task ${taskId} completed: ${result.data}`);
       },
       {
         connection: {

@@ -7,6 +7,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TaskWorker } from './taskWorker';
+import { MockModule } from 'src/mock/mock.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TaskWorker } from './taskWorker';
       }),
     }),
     BullModule.registerQueue({ name: 'tasks' }),
+    MockModule,
   ],
   controllers: [TaskController],
   providers: [TaskService, TaskWorker],
