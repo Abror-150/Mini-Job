@@ -2,20 +2,28 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DataSource } from 'typeorm';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const dataSource = app.get(DataSource);
+  console.log('dataSource initialized?', dataSource.isInitialized);
   app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
-    .setTitle('Job ')
-    .setDescription('The Job API description')
+    .setTitle('Job Platform API')
     .setVersion('1.0')
-    .addTag('Job')
+    .addBearerAuth()
     .build();
-  const documentFactory = () => SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, documentFactory);
-  await app.listen(process.env.PORT ?? 3000);
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+
+  const port = process.env.PORT ?? 3001;
+  await app.listen(port);
+
+  console.log(`✅ Server: http://localhost:${port}`);
+  console.log(`📖 Swagger: http://localhost:${port}/api`);
 }
 bootstrap();
