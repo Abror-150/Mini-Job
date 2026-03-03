@@ -8,12 +8,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const dataSource = app.get(DataSource);
-  console.log('dataSource initialized?', dataSource.isInitialized);
   app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
     .setTitle('Job Platform API')
     .setVersion('1.0')
+    .addSecurityRequirements('bearer', ['bearer'])
     .addBearerAuth()
     .build();
 
@@ -22,8 +22,5 @@ async function bootstrap() {
 
   const port = process.env.PORT ?? 3001;
   await app.listen(port);
-
-  console.log(`✅ Server: http://localhost:${port}`);
-  console.log(`📖 Swagger: http://localhost:${port}/api`);
 }
 bootstrap();
