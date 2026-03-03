@@ -49,7 +49,7 @@ export class TaskController {
     name: 'type',
     required: false,
     type: String,
-    description: 'Filter by task type (email, report, notification)',
+    description: 'Filter by task type (email, report)',
   })
   @ApiQuery({
     name: 'from',
@@ -98,9 +98,13 @@ export class TaskController {
     };
 
     return this.taskService.findAll(
-      req.user.userId,
+      req.user.id,
       req.user.role === 'ADMIN',
       query,
     );
+  }
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.taskService.findOne(id);
   }
 }

@@ -3,22 +3,26 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TaskService } from './task.service';
 import { TaskController } from './task.controller';
 import { Task } from './entities/task.entity';
-import { BullModule } from '@nestjs/bull';
+import { BullModule } from '@nestjs/bullmq';
+import { RedisModule } from '@nestjs-modules/ioredis';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TaskWorker } from './taskWorker';
 
 @Module({
   imports: [
+    ConfigModule,
     TypeOrmModule.forFeature([Task]),
-    BullModule.forRoot({
-      redis: {
-        host: 'localhost',
-        port: 6379,
-      },
+    RedisModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: 'single',
+        url: `rediss://default:${config.get('REDIS_PASSWORD')}@${config.get('REDIS_HOST')}:${config.get('REDIS_PORT')}`,
+      }),
     }),
-    BullModule.registerQueue({
-      name: 'tasks',
-    }),
+    BullModule.registerQueue({ name: 'tasks' }),
   ],
   controllers: [TaskController],
-  providers: [TaskService],
+  providers: [TaskService, TaskWorker],
 })
 export class TaskModule {}

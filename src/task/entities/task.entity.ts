@@ -52,7 +52,7 @@ export class Task {
   @Column({ type: 'enum', enum: TaskStatus, default: TaskStatus.PENDING })
   status: TaskStatus;
 
-  @Index()
+  @Index(['user_id', 'idempotency_key'], { unique: true })
   @Column({ unique: true })
   idempotency_key: string;
 

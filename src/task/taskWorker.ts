@@ -34,7 +34,12 @@ export class TaskWorker implements OnModuleInit {
         this.logger.log(`Task ${taskId} completed successfully`);
       },
       {
-        connection: { host: 'localhost', port: 6379 },
+        connection: {
+          host: process.env.REDIS_HOST,
+          port: Number(process.env.REDIS_PORT),
+          password: process.env.REDIS_PASSWORD,
+          tls: {},
+        },
         concurrency: 5,
       },
     );

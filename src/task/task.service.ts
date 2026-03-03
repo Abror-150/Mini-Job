@@ -1,10 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { Task, TaskStatus } from './entities/task.entity';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { delay, Queue } from 'bullmq';
 import { CreateTaskDto } from './dto/create-task.dto';
+import Redis from 'ioredis';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 
 interface TaskQueryDto {
   status?: TaskStatus;
@@ -23,8 +29,30 @@ export class TaskService {
 
     @InjectQueue('tasks')
     private taskQueue: Queue,
+    @InjectRedis()
+    private redis: Redis,
   ) {}
   async create(taskData: CreateTaskDto & { user_id: string }) {
+    const rateLimits: Record<string, number> = {
+      email: 5,
+      report: 2,
+    };
+
+    if (rateLimits[taskData.type]) {
+      const key = `rate:${taskData.user_id}:${taskData.type}`;
+      const count = await this.redis.incr(key);
+
+      if (count === 1) {
+        await this.redis.expire(key, 60);
+      }
+
+      if (count > rateLimits[taskData.type]) {
+        throw new BadRequestException(
+          `${taskData.type} rate limit exceeded (${rateLimits[taskData.type]}/min)`,
+        );
+      }
+    }
+
     const existing = await this.taskRepo.findOne({
       where: { idempotency_key: taskData.idempotency_key },
     });
@@ -32,11 +60,15 @@ export class TaskService {
 
     const task = this.taskRepo.create(taskData);
     const savedTask = await this.taskRepo.save(task);
+    const delay = taskData.scheduled_at
+      ? Math.max(0, new Date(taskData.scheduled_at).getTime() - Date.now())
+      : 0;
 
     await this.taskQueue.add(
       'task-job',
       { taskId: savedTask.id },
       {
+        delay: Number(delay),
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 },
       },
@@ -44,7 +76,6 @@ export class TaskService {
 
     return savedTask;
   }
-
   async getMetrics() {
     const total = await this.taskRepo.count();
 
@@ -106,6 +137,7 @@ export class TaskService {
     qb.orderBy('task.created_at', 'DESC');
 
     const [tasks, total] = await qb.getManyAndCount();
+    console.log(tasks, 'asgasd');
 
     return {
       data: tasks,
@@ -116,8 +148,12 @@ export class TaskService {
     };
   }
 
-  findOne(id: string) {
-    return this.taskRepo.findOne({ where: { id } });
+  async findOne(id: string) {
+    const one = await this.taskRepo.findOne({ where: { id } });
+    if (!one) {
+      throw new NotFoundException('not found');
+    }
+    return one;
   }
 
   async cancel(id: string) {
